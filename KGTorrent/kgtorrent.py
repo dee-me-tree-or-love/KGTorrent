@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from enum import Enum
 import argparse
 import sys
 from pathlib import Path
@@ -7,36 +8,63 @@ from pathlib import Path
 import KGTorrent.config as config
 from KGTorrent.data_loader import DataLoader
 from KGTorrent.db_communication_handler import DbCommunicationHandler
-from KGTorrent.downloader import Downloader
+from KGTorrent.downloader import Downloader, DownloadStrategies
 from KGTorrent.mk_preprocessor import MkPreprocessor
+
+
+class Commands(Enum):
+    INIT = "init"
+    REFRESH = "refresh"
+    DOWNLOAD = "download"
 
 
 def main():
     """Entry-point function for KGTorrent.
-    It orchestrates function/method calls to build and populate the KGTorrent database and dataset."""
+    It orchestrates function/method calls to build and populate the KGTorrent database and dataset.
+    """
 
     # Create the parser
     my_parser = argparse.ArgumentParser(
-        prog='KGTorrent',
-        usage='%(prog)s <init|refresh> [options]',
-        description='Initialize or refresh KGTorrent'
+        prog="KGTorrent",
+        usage="%(prog)s <init|refresh> [options]",
+        description="Initialize or refresh KGTorrent",
     )
 
     # Add the arguments
-    my_parser.add_argument('command',
-                           type=str,
-                           choices=['init', 'refresh'],
-                           help='Use the `init` command to create KGTorrent from scratch or '
-                                'the `refresh` command to update KGTorrent '
-                                'according to the last version of Meta Kaggle.')
+    my_parser.add_argument(
+        "command",
+        type=str,
+        choices=[Commands.INIT, Commands.REFRESH, Commands.DOWNLOAD],
+        help=f"Use the `{Commands.INIT}` command to create KGTorrent from scratch or "
+        + f"the `{Commands.REFRESH}` command to update KGTorrent "
+        + "according to the last version of Meta Kaggle. "
+        + f"Use the `{Commands.REFRESH}` command to only download the notebooks "
+        + "for an already initialized KGTorrent.",
+    )
 
-    my_parser.add_argument('--strategy',
-                           type=str,
-                           choices=['API', 'HTTP'],
-                           default='HTTP',
-                           help="Use the `API` strategy to download Kaggle kernels via the Kaggle's official API; "
-                                "Use the `HTTP` strategy to download full kernels via HTTP requests."
-                                "N.B.: Notebooks downloaded via the Kaggle API miss code cell outputs.")
+    my_parser.add_argument(
+        "-s",
+        "--strategy",
+        type=str,
+        choices=list(DownloadStrategies.strategies) + ["SKIP"],
+        default="HTTP",
+        help=f"Use the `{DownloadStrategies.API}` strategy to download Kaggle kernels via the Kaggle's official API; "
+        + f"Use the `{DownloadStrategies.HTTP}` strategy to download full kernels via HTTP requests. "
+        + "N.B.: Notebooks downloaded via the Kaggle API miss code cell outputs. "
+        + "Use the `SKIP` strategy to skip the download step completely.",
+    )
+
+    my_parser.add_argument(
+        "-m",
+        "--matching",
+        type=str,
+        action="extend",
+        nargs="+",
+        default=[],
+        help="Provide a comma-separated list of notebook identifiers for download. "
+        + "If provided, only matching notebooks in dataset are downloaded. "
+        + "Otherwise KGTorrent downloads all notebooks.",
+    )
 
     # Execute the parse_args() method
     args = my_parser.parse_args()
@@ -49,45 +77,48 @@ def main():
 
     # Create db engine
     print(f"## Connecting to {config.db_name} db on port {config.db_port} as user {config.db_username}")
-    db_engine = DbCommunicationHandler(config.db_username,
-                                       config.db_password,
-                                       config.db_host,
-                                       config.db_port,
-                                       config.db_name)
+    db_engine = DbCommunicationHandler(
+        config.db_username,
+        config.db_password,
+        config.db_host,
+        config.db_port,
+        config.db_name,
+    )
 
     print("## Connection with database established.")
 
     # CHECK USER VARIABLES
-    proceed = None
+    proceed: bool = False
 
     # Check db emptiness
     if db_engine.db_exists():
-        if command == 'init':
-            print(f'Database {config.db_name} already exists. ', file=sys.stderr)
-            print(f'Please, provide a name that is not already in use for the KGTorrent database.',
-                  file=sys.stderr)
+        if command == Commands.INIT:
+            print(f"Database {config.db_name} already exists. ", file=sys.stderr)
+            print(f"Please, provide a name that is not already in use for the KGTorrent database.", file=sys.stderr)
             proceed = False
-        if command == 'refresh':
-            print(f'Database {config.db_name} already exists. This operation will reinitialize the current database')
-            print('and populate it with the provided MetaKaggle version.')
-            ans = input(f'Are you sure to re-initialize {config.db_name} database? [yes]\n')
-            if ans.lower() == 'yes':
+        if command == Commands.REFRESH:
+            print(f"Database {config.db_name} already exists. This operation will reinitialize the current database")
+            print("and populate it with the provided MetaKaggle version.")
+            ans = input(f"Are you sure to re-initialize {config.db_name} database? [yes]\n")
+            if ans.lower() == "yes":
                 proceed = True
             else:
                 proceed = False
+        if command == Commands.DOWNLOAD:
+            print(f"Database {config.db_name} already exists. This operation will only download the notebooks.")
+
     else:
         proceed = True
 
     # Check download folder emptiness when init
     data = next(Path(config.nb_archive_path).iterdir(), None)
-    if (data is not None) & (command == 'init'):
-        print(f'Download folder {config.nb_archive_path} is not empty.', file=sys.stderr)
-        print('Please, provide the path to an empty folder to store downloaded notebooks.', file=sys.stderr)
+    if (data is not None) and (command == Commands.INIT or command == Commands.DOWNLOAD):
+        print(f"Download folder {config.nb_archive_path} is not empty.", file=sys.stderr)
+        print("Please, provide the path to an empty folder to store downloaded notebooks.", file=sys.stderr)
         proceed = False
 
-    # KGTorrent process
-    if proceed:
-
+    # KGTorrent data preparation process
+    if proceed and (command != Commands.DOWNLOAD):
         print("********************")
         print("*** LOADING DATA ***")
         print("********************")
@@ -115,12 +146,15 @@ def main():
         print("** APPLICATION OF CONSTRAINTS **")
         db_engine.set_foreign_keys(dl.get_constraints_df())
 
-        print("** QUERYING KERNELS TO DOWNLOAD **")
-        nb_identifiers = db_engine.get_nb_identifiers(config.nb_conf['languages'])
-
         # Free memory
         del dl
         del mk
+
+    # KGTorrent notebook download process
+    if proceed:
+        print("** QUERYING KERNELS TO DOWNLOAD **")
+        nb_identifiers = db_engine.get_nb_identifiers(config.nb_conf["languages"])
+
         del db_engine
 
         # Download the notebooks and update the db with their local path
@@ -129,18 +163,23 @@ def main():
         print("*******************************")
         print("** NOTEBOOK DOWNLOAD STARTED **")
         print("*******************************")
-        downloader = Downloader(nb_identifiers, config.nb_archive_path)
-        print(f'# Selected strategy. {args.strategy}')
-        downloader.download_notebooks(strategy=args.strategy)
-        print('## Download finished.')
+
+        print(f"# Selected strategy. {args.strategy}")
+        if not args.strategy == "SKIP":
+            download_identifiers = list(set(nb_identifiers) & set(args.matching))
+            downloader = Downloader(download_identifiers, config.nb_archive_path)
+            downloader.download_notebooks(strategy=args.strategy)
+            print("## Download finished.")
+        else:
+            print("## Download skipped.")
 
     time.sleep(0.2)
-    print('## KGTorrent end')
+    print("## KGTorrent end")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import time
 
     start_time = time.time()
     main()
-    print("--- %s minutes ---" % ((time.time() - start_time)/60))
+    print("--- %s minutes ---" % ((time.time() - start_time) / 60))

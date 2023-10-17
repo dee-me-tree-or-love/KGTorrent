@@ -2,6 +2,7 @@
 This module defines the class that handles the actual download of Jupyter notebooks from Kaggle.
 """
 
+from enum import Enum
 import logging
 import time
 from pathlib import Path
@@ -13,6 +14,16 @@ from kaggle.api.kaggle_api_extended import KaggleApi
 # Imports for testing
 import KGTorrent.config as config
 from KGTorrent.db_communication_handler import DbCommunicationHandler
+
+
+class DownloadStrategies(Enum):
+    HTTP = "HTTP"
+    API = "API"
+
+    @property
+    @classmethod
+    def strategies(cls) -> tuple[DownloadStrategies]:
+        return (c.value for c in cls)
 
 
 class Downloader:
@@ -65,28 +76,31 @@ class Downloader:
         """
 
         # Get notebook names
-        notebook_paths = list(Path(self._nb_archive_path).glob('*.ipynb'))
+        notebook_paths = list(Path(self._nb_archive_path).glob("*.ipynb"))
 
         for path in notebook_paths:
             name = path.stem
-            split = name.split('_')
+            split = name.split("_")
 
             # check if the file have valid name
             if len(split) == 2:
-
                 # If the file exists in folder drop it from res
-                if (split[0] in self._nb_identifiers['UserName'].values) & \
-                        (split[1] in self._nb_identifiers['CurrentUrlSlug'].values):
-                    print('Notebook ', name, ' already downloaded')
-                    self._nb_identifiers = self._nb_identifiers.loc[~(
-                            (self._nb_identifiers['UserName'] == split[0]) &
-                            (self._nb_identifiers['CurrentUrlSlug'] == split[1]))]
+                if (split[0] in self._nb_identifiers["UserName"].values) & (
+                    split[1] in self._nb_identifiers["CurrentUrlSlug"].values
+                ):
+                    print("Notebook ", name, " already downloaded")
+                    self._nb_identifiers = self._nb_identifiers.loc[
+                        ~(
+                            (self._nb_identifiers["UserName"] == split[0])
+                            & (self._nb_identifiers["CurrentUrlSlug"] == split[1])
+                        )
+                    ]
                 else:  # remove the notebook
-                    print('Removing notebook', name, ' not found in db')
+                    print("Removing notebook", name, " not found in db")
                     path.unlink()
 
             else:  # remove the notebook
-                print('Removing notebook', name, ' not valid')
+                print("Removing notebook", name, " not valid")
                 path.unlink()
 
     def _http_download(self):
@@ -97,9 +111,8 @@ class Downloader:
         self._n_failed_downloads = 0
 
         for row in tqdm(self._nb_identifiers.itertuples(), total=self._nb_identifiers.shape[0]):
-
             # Generate URL
-            url = 'https://www.kaggle.com/kernels/scriptcontent/{}/download'.format(row[3])
+            url = "https://www.kaggle.com/kernels/scriptcontent/{}/download".format(row[3])
 
             # Download notebook content to memory
             # noinspection PyBroadException
@@ -117,12 +130,12 @@ class Downloader:
                 continue
 
             # Write notebook in folder
-            download_path = self._nb_archive_path + f'/{row[1]}_{row[2]}.ipynb'
-            with open(Path(download_path), 'wb') as notebook_file:
+            download_path = self._nb_archive_path + f"/{row[1]}_{row[2]}.ipynb"
+            with open(Path(download_path), "wb") as notebook_file:
                 notebook_file.write(notebook.content)
 
             self._n_successful_downloads += 1
-            logging.info(f'Downloaded {row[1]}/{row[2]} (ID: {row[3]})')
+            logging.info(f"Downloaded {row[1]}/{row[2]} (ID: {row[3]})")
 
             # Wait a bit to avoid a potential IP banning
             time.sleep(1)
@@ -141,28 +154,27 @@ class Downloader:
         self._n_failed_downloads = 0
 
         for row in tqdm(self._nb_identifiers.itertuples(), total=self._nb_identifiers.shape[0]):
-
             # noinspection PyBroadException
             try:
-                api.kernels_pull(f'{row[1]}/{row[2]}', path=Path(self._nb_archive_path))
+                api.kernels_pull(f"{row[1]}/{row[2]}", path=Path(self._nb_archive_path))
 
                 # Kaggle API save notebook only with slug name
                 # Rename downloaded notebook to username/slug
-                nb = Path(self._nb_archive_path + f'/{row[2]}.ipynb')
-                nb.rename(self._nb_archive_path + f'/{row[1]}_{row[2]}.ipynb')
+                nb = Path(self._nb_archive_path + f"/{row[2]}.ipynb")
+                nb.rename(self._nb_archive_path + f"/{row[1]}_{row[2]}.ipynb")
 
             except Exception:
-                logging.exception(f'An error occurred while requesting the notebook {row[1]}/{row[2]}')
+                logging.exception(f"An error occurred while requesting the notebook {row[1]}/{row[2]}")
                 self._n_failed_downloads += 1
                 continue
 
             self._n_successful_downloads += 1
-            logging.info(f'Downloaded {row[1]}/{row[2]} (ID: {row[3]})')
+            logging.info(f"Downloaded {row[1]}/{row[2]} (ID: {row[3]})")
 
             # Wait a bit to avoid a potential IP banning
             time.sleep(1)
 
-    def download_notebooks(self, strategy='HTTP'):
+    def download_notebooks(self, strategy=DownloadStrategies.HTTP):
         """
         This method executes the download procedure using the provided strategy after checking the destination folder.
 
@@ -180,11 +192,11 @@ class Downloader:
         time.sleep(1)
 
         # HTTP STRATEGY
-        if strategy is 'HTTP':
+        if strategy is DownloadStrategies.HTTP:
             self._http_download()
 
         # API STRATEGY
-        if strategy is 'API':
+        if strategy is DownloadStrategies.API:
             self._api_download()
 
         # Print download session summary
@@ -194,30 +206,29 @@ class Downloader:
         print("\tNumber of failed downloads:", self._n_failed_downloads)
 
         # Print summary to log file
-        logging.info('DOWNLOAD COMPLETED.\n'
-                     f'Total attempts: {total_rows}:\n'
-                     f'\t- {self._n_successful_downloads} successful;\n'
-                     f'\t- {self._n_failed_downloads} failed.')
+        logging.info(
+            "DOWNLOAD COMPLETED.\n"
+            f"Total attempts: {total_rows}:\n"
+            f"\t- {self._n_successful_downloads} successful;\n"
+            f"\t- {self._n_failed_downloads} failed."
+        )
 
 
-if __name__ == '__main__':
-
+if __name__ == "__main__":
     print(f"## Connecting to {config.db_name} db on port {config.db_port} as user {config.db_username}")
-    db_engine = DbCommunicationHandler(config.db_username,
-                                       config.db_password,
-                                       config.db_host,
-                                       config.db_port,
-                                       config.db_name)
+    db_engine = DbCommunicationHandler(
+        config.db_username, config.db_password, config.db_host, config.db_port, config.db_name
+    )
 
     print("** QUERING KERNELS TO DOWNLOAD **")
-    kernels_ids = db_engine.get_nb_identifiers(config.nb_conf['languages'])
+    kernels_ids = db_engine.get_nb_identifiers(config.nb_conf["languages"])
 
     downloader = Downloader(kernels_ids.head(), config.nb_archive_path)
-    strategies = 'HTTP', 'API'
+    strategies = DownloadStrategies.strategies
 
     print("*******************************")
     print("** NOTEBOOK DOWNLOAD STARTED **")
     print("*******************************")
-    print(f'# Selected strategy. {strategies[0]}')
+    print(f"# Selected strategy. {strategies[0]}")
     downloader.download_notebooks(strategy=strategies[0])
-    print('## Download finished.')
+    print("## Download finished.")
