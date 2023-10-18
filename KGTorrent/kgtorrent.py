@@ -12,6 +12,21 @@ from KGTorrent.downloader import Downloader, DownloadStrategies
 from KGTorrent.mk_preprocessor import MkPreprocessor
 
 
+# FIXME(remove-after-testing):
+from unittest.mock import MagicMock
+
+
+class SimpleDependencyProvider:
+    # FIXME(uncomment-after-testing):
+    # DB_ENGINE = DbCommunicationHandler
+    # MK_PREPROCESSOR = MkPreprocessor
+    # DOWNLOADER = Downloader
+    # FIXME(remove-after-testing):
+    DB_ENGINE = MagicMock
+    MK_PREPROCESSOR = MagicMock
+    DOWNLOADER = MagicMock
+
+
 class Commands(Enum):
     INIT = "init"
     REFRESH = "refresh"
@@ -77,7 +92,7 @@ def main():
 
     # Create db engine
     print(f"## Connecting to {config.db_name} db on port {config.db_port} as user {config.db_username}")
-    db_engine = DbCommunicationHandler(
+    db_engine = SimpleDependencyProvider.DB_ENGINE(
         config.db_username,
         config.db_password,
         config.db_host,
@@ -127,7 +142,7 @@ def main():
         print("***********************************")
         print("** TABLES PRE-PROCESSING STARTED **")
         print("***********************************")
-        mk = MkPreprocessor(dl.get_tables_dict(), dl.get_constraints_df())
+        mk = SimpleDependencyProvider.MK_PREPROCESSOR(dl.get_tables_dict(), dl.get_constraints_df())
         processed_dict, stats = mk.preprocess_mk()
 
         print("*************")
@@ -155,6 +170,11 @@ def main():
         print("** QUERYING KERNELS TO DOWNLOAD **")
         nb_identifiers = db_engine.get_nb_identifiers(config.nb_conf["languages"])
 
+        print("*******************")
+        print("*** Identifiers ***")
+        print("*******************\n")
+        print(nb_identifiers)
+
         del db_engine
 
         # Download the notebooks and update the db with their local path
@@ -167,7 +187,7 @@ def main():
         print(f"# Selected strategy. {args.strategy}")
         if not args.strategy == "SKIP":
             download_identifiers = list(set(nb_identifiers) & set(args.matching))
-            downloader = Downloader(download_identifiers, config.nb_archive_path)
+            downloader = SimpleDependencyProvider.DOWNLOADER(download_identifiers, config.nb_archive_path)
             downloader.download_notebooks(strategy=args.strategy)
             print("## Download finished.")
         else:
