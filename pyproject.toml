@@ -1,6 +1,9 @@
 [tool.black]
 line-length = 120
 
+[tool.isort]
+profile = "black"
+
 [tool.poetry]
 name = "kgtorrent"
 version = "0.1.0"
@@ -17,12 +20,15 @@ numpy = "^1.26.1"
 requests = "^2.31.0"
 sqlalchemy-utils = "^0.41.1"
 pandas = "^2.1.1"
+python-dotenv = "^1.0.0"
+pymysql = "^1.1.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.10.0"
+isort = "^5.12.0"
 
 [tool.poetry.scripts]
-my_package_cli = 'kgtorrent.kgtorrent:entry'
+kgtorrent = 'KGTorrent.kgtorrent:entry'
 
 [build-system]
 requires = ["poetry-core"]
