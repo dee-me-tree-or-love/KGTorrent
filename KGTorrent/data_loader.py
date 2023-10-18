@@ -7,6 +7,7 @@ import pandas as pd
 # Imports for testing
 from KGTorrent import config
 
+
 class DataLoader:
     """
     This class stores the MetaKaggle version tables and the foreign key constraints table.

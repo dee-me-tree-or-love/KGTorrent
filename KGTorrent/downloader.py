@@ -2,28 +2,26 @@
 This module defines the class that handles the actual download of Jupyter notebooks from Kaggle.
 """
 
-from enum import Enum
 import logging
 import time
 from pathlib import Path
-from tqdm import tqdm
 
 import requests
 from kaggle.api.kaggle_api_extended import KaggleApi
+from tqdm import tqdm
 
 # Imports for testing
 import KGTorrent.config as config
 from KGTorrent.db_communication_handler import DbCommunicationHandler
 
 
-class DownloadStrategies(Enum):
+class DownloadStrategies:
     HTTP = "HTTP"
     API = "API"
 
-    @property
     @classmethod
-    def strategies(cls) -> tuple[DownloadStrategies]:
-        return (c.value for c in cls)
+    def strategies(cls) -> tuple[str]:
+        return (cls.HTTP, cls.API)
 
 
 class Downloader:

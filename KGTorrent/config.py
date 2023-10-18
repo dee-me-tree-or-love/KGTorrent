@@ -10,6 +10,10 @@ import logging
 import os
 import time
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # MySQL DB configuration
 db_host = os.environ["DB_HOST"]
 db_port = os.environ["DB_PORT"]

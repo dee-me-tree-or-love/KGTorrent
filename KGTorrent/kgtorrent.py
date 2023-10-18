@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 
-from enum import Enum
 import argparse
 import sys
+import time
 from pathlib import Path
+
+# FIXME(remove-after-testing):
+# from unittest.mock import create_autospec
 
 import KGTorrent.config as config
 from KGTorrent.data_loader import DataLoader
@@ -12,25 +15,27 @@ from KGTorrent.downloader import Downloader, DownloadStrategies
 from KGTorrent.mk_preprocessor import MkPreprocessor
 
 
-# FIXME(remove-after-testing):
-from unittest.mock import MagicMock
-
-
 class SimpleDependencyProvider:
-    # FIXME(uncomment-after-testing):
-    # DB_ENGINE = DbCommunicationHandler
-    # MK_PREPROCESSOR = MkPreprocessor
-    # DOWNLOADER = Downloader
+    DB_ENGINE = DbCommunicationHandler
+    MK_PREPROCESSOR = MkPreprocessor
+    DOWNLOADER = Downloader
     # FIXME(remove-after-testing):
-    DB_ENGINE = MagicMock
-    MK_PREPROCESSOR = MagicMock
-    DOWNLOADER = MagicMock
+    # DB_ENGINE = create_autospec(DbCommunicationHandler)
+    # MK_PREPROCESSOR = create_autospec(MkPreprocessor)
+    # DOWNLOADER = create_autospec(Downloader)
 
 
-class Commands(Enum):
+class Commands:
     INIT = "init"
     REFRESH = "refresh"
     DOWNLOAD = "download"
+
+    @classmethod
+    def commands(cls) -> [str]:
+        return [cls.INIT, cls.REFRESH, cls.DOWNLOAD]
+
+
+print(Commands.commands())
 
 
 def main():
@@ -41,7 +46,7 @@ def main():
     # Create the parser
     my_parser = argparse.ArgumentParser(
         prog="KGTorrent",
-        usage="%(prog)s <init|refresh> [options]",
+        usage="%(prog)s <" + "|".join(Commands.commands()) + "> [options]",
         description="Initialize or refresh KGTorrent",
     )
 
@@ -61,7 +66,7 @@ def main():
         "-s",
         "--strategy",
         type=str,
-        choices=list(DownloadStrategies.strategies) + ["SKIP"],
+        choices=list(DownloadStrategies.strategies()) + ["SKIP"],
         default="HTTP",
         help=f"Use the `{DownloadStrategies.API}` strategy to download Kaggle kernels via the Kaggle's official API; "
         + f"Use the `{DownloadStrategies.HTTP}` strategy to download full kernels via HTTP requests. "
@@ -198,8 +203,6 @@ def main():
 
 
 def entry():
-    import time
-
     start_time = time.time()
     main()
     print("--- %s minutes ---" % ((time.time() - start_time) / 60))

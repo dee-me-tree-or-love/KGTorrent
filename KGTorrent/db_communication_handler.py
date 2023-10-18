@@ -3,27 +3,33 @@ This module defines the class that handles the communication with the database v
 """
 
 import sys
-from sqlalchemy.exc import IntegrityError
-
-from KGTorrent.exceptions import DatabaseExistsError
 
 import pandas as pd
 
-# Imports to manage database
-from sqlalchemy import create_engine
-from sqlalchemy_utils import database_exists, \
-    create_database, \
-    drop_database
-
 # Imports to create table schemas
-from sqlalchemy import (MetaData, Table, Column, Integer, String, Float,
-                        DateTime, Boolean, Text, BigInteger)
-from sqlalchemy.dialects.mysql import (MEDIUMTEXT, LONGTEXT)
+# Imports to manage database
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    Text,
+    create_engine,
+)
+from sqlalchemy.dialects.mysql import LONGTEXT, MEDIUMTEXT
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy_utils import create_database, database_exists, drop_database
 
 # Imports for testing
 import KGTorrent.config as config
-from KGTorrent.mk_preprocessor import MkPreprocessor
 from KGTorrent.data_loader import DataLoader
+from KGTorrent.exceptions import DatabaseExistsError
+from KGTorrent.mk_preprocessor import MkPreprocessor
 
 
 class DbCommunicationHandler:
