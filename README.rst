@@ -31,7 +31,7 @@ For the development of KGTorrent we used the following environment:
 To execute the scripts in this repository, first make sure to have a running installation of MySQL (v. 5.7.11 or later). In case you don't, follow the `official guide <https://dev.mysql.com/doc/mysql-installation-excerpt/8.0/en/>`_ to install the DBMS.
 Then, create a new Conda environment and install the Python dependencies of this project (reported in ``environment.yml``)::
 
-    conda <environment name> create -f environment.yml
+    conda env create -n <environment name> --file setup/environment.<your OS>.yaml
 
 Once the environment is ready, activate it using the following Conda command::
 
