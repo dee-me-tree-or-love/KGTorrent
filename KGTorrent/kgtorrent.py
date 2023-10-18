@@ -197,9 +197,13 @@ def main():
     print("## KGTorrent end")
 
 
-if __name__ == "__main__":
+def entry():
     import time
 
     start_time = time.time()
     main()
     print("--- %s minutes ---" % ((time.time() - start_time) / 60))
+
+
+if __name__ == "__main__":
+    entry()
